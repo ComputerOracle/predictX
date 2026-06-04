@@ -95,11 +95,7 @@ Current development focuses on:
 * Decentralized market resolution
 * Oracle integrations
 
-## Contributing
 
-Contributions are welcome.
-
-Please review the CONTRIBUTING.md guidelines before opening issues or pull requests.
 
 ## License
 
