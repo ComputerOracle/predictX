@@ -43,6 +43,17 @@ export function Header() {
             >
               Markets
             </Link>
+            <Link
+              href="/create"
+              className={clsx(
+                "text-sm font-medium transition-colors",
+                isActive("/create")
+                  ? "text-ink border-b-2 border-ink"
+                  : "text-slate-600 hover:text-ink"
+              )}
+            >
+              Create
+            </Link>
           </nav>
         </div>
 
