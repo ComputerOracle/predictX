@@ -5,4 +5,8 @@ use soroban_sdk::contracterror;
 #[repr(u32)]
 pub enum PredictXError {
     NotImplemented = 1,
+    EmptyTitle = 2,
+    EmptyDescription = 3,
+    InvalidOutcomeCount = 4,
+    InvalidEndTime = 5,
 }
