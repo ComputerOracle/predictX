@@ -1,0 +1,24 @@
+{
+  "name": "predictx",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Production-grade scaffold for PredictX, a Stellar Soroban prediction marketplace.",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "build": "npm --workspace frontend run build",
+    "dev": "npm --workspace frontend run dev",
+    "format": "npm --workspace frontend run format",
+    "lint": "npm --workspace frontend run lint",
+    "test": "npm --workspace frontend run test",
+    "contracts:build": "cargo build --manifest-path contracts/Cargo.toml --target wasm32-unknown-unknown --release",
+    "contracts:test": "cargo test --manifest-path contracts/Cargo.toml",
+    "contracts:lint": "cargo clippy --workspace --all-targets -- -D warnings"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  }
+}
+
