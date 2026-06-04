@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { Market, MarketStatus } from "@/lib/contract/types";
@@ -112,9 +113,12 @@ export function MarketCard({ market }: MarketCardProps) {
             {timeRemaining}
           </p>
         </div>
-        <button className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-900 transition-colors">
-          Place Bet
-        </button>
+        <Link
+          href={`/markets/${market.id}`}
+          className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-900 transition-colors"
+        >
+          View Details
+        </Link>
       </div>
     </div>
   );

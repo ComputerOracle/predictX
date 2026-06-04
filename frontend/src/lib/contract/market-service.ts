@@ -76,3 +76,22 @@ export function getTimeUntilResolution(endTime: number, currentTime: number): {
 
   return { days, hours, minutes, seconds, isExpired };
 }
+
+export async function getMarketPool(marketId: number): Promise<number> {
+  try {
+    const result = await simulateContractCall("get_market_pool", [marketId]);
+
+    if (typeof result === "number") {
+      return result;
+    }
+
+    if (typeof result === "bigint") {
+      return Number(result);
+    }
+
+    return 0;
+  } catch (error) {
+    console.error("Error fetching market pool:", error);
+    return 0;
+  }
+}
