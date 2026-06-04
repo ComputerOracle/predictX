@@ -14,9 +14,10 @@ use crate::{
     market::Market,
     resolution::MarketResult,
     storage::{
-        get_bet as load_bet, get_market as load_market, get_market_count,
-        get_market_pool as load_market_pool, get_market_result as load_market_result,
-        get_next_market_id, save_bet, save_market, save_market_pool, save_market_result,
+        add_market_bettor, get_bet as load_bet, get_market as load_market, get_market_bettors,
+        get_market_count, get_market_pool as load_market_pool,
+        get_market_result as load_market_result, get_next_market_id, is_reward_claimed,
+        mark_reward_claimed, save_bet, save_market, save_market_pool, save_market_result,
     },
 };
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -128,6 +129,7 @@ impl PredictXContract {
             .ok_or(PredictXError::MarketPoolOverflow)?;
 
         save_bet(&env, &bet);
+        add_market_bettor(&env, market_id, &bet.bettor);
         save_market_pool(&env, market_id, market_pool);
 
         Ok(())
@@ -183,6 +185,64 @@ impl PredictXContract {
             winning_outcome: None,
             resolved: market.resolved,
         })
+    }
+
+    pub fn calculate_reward(
+        env: Env,
+        market_id: u64,
+        bettor: Address,
+    ) -> Result<i128, PredictXError> {
+        let market = load_market(&env, market_id).ok_or(PredictXError::MarketNotFound)?;
+
+        if !market.resolved {
+            return Err(PredictXError::MarketNotResolved);
+        }
+
+        let result = load_market_result(&env, market_id).ok_or(PredictXError::MarketNotResolved)?;
+        let winning_outcome = result
+            .winning_outcome
+            .ok_or(PredictXError::MarketNotResolved)?;
+        let user_bet = load_bet(&env, market_id, &bettor).ok_or(PredictXError::BetNotFound)?;
+
+        if user_bet.outcome_index != winning_outcome {
+            return Err(PredictXError::NotWinningBet);
+        }
+
+        let bettors = get_market_bettors(&env, market_id);
+        let mut total_winning_pool = 0_i128;
+
+        for index in 0..bettors.len() {
+            let market_bettor = bettors.get(index).unwrap();
+            if let Some(bet) = load_bet(&env, market_id, &market_bettor) {
+                if bet.outcome_index == winning_outcome {
+                    total_winning_pool = total_winning_pool
+                        .checked_add(bet.amount)
+                        .ok_or(PredictXError::RewardCalculationOverflow)?;
+                }
+            }
+        }
+
+        let total_market_pool = load_market_pool(&env, market_id);
+
+        user_bet
+            .amount
+            .checked_mul(total_market_pool)
+            .ok_or(PredictXError::RewardCalculationOverflow)
+            .map(|weighted_bet| weighted_bet / total_winning_pool)
+    }
+
+    pub fn claim_reward(env: Env, market_id: u64, bettor: Address) -> Result<i128, PredictXError> {
+        if is_reward_claimed(&env, market_id, &bettor) {
+            return Err(PredictXError::RewardAlreadyClaimed);
+        }
+
+        bettor.require_auth();
+
+        let reward = Self::calculate_reward(env.clone(), market_id, bettor.clone())?;
+
+        mark_reward_claimed(&env, market_id, &bettor);
+
+        Ok(reward)
     }
 }
 

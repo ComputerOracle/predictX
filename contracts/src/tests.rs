@@ -3,7 +3,9 @@ use crate::{
     betting::Bet,
     errors::PredictXError,
     market::Market,
-    storage::{get_market, get_next_market_id, save_bet, save_market},
+    storage::{
+        add_market_bettor, get_market, get_next_market_id, save_bet, save_market, save_market_pool,
+    },
 };
 use soroban_sdk::{
     testutils::{Address as _, Ledger as _},
@@ -657,5 +659,257 @@ fn rejects_already_resolved_market() {
 
         let result = PredictXContract::get_market_result(env.clone(), market_id).unwrap();
         assert_eq!(result.winning_outcome, Some(0));
+    });
+}
+
+#[test]
+fn calculates_successful_reward() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+    env.ledger().set_timestamp(10);
+    let contract_id = env.register(PredictXContract, ());
+    let winner = Address::generate(&env);
+    let second_winner = Address::generate(&env);
+    let loser = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Reward market"),
+            String::from_str(&env, "A market with a reward calculation."),
+            20,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        PredictXContract::place_bet(env.clone(), market_id, winner.clone(), 0, 100).unwrap();
+        PredictXContract::place_bet(env.clone(), market_id, second_winner, 0, 100).unwrap();
+        PredictXContract::place_bet(env.clone(), market_id, loser, 1, 200).unwrap();
+
+        env.ledger().set_timestamp(21);
+        PredictXContract::resolve_market(env.clone(), market_id, 0).unwrap();
+
+        assert_eq!(
+            PredictXContract::calculate_reward(env.clone(), market_id, winner),
+            Ok(200)
+        );
+    });
+}
+
+#[test]
+fn claims_reward_successfully() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+    env.ledger().set_timestamp(10);
+    let contract_id = env.register(PredictXContract, ());
+    let winner = Address::generate(&env);
+    let loser = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Claim market"),
+            String::from_str(&env, "A market with a claimable reward."),
+            20,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        let winner_bet = Bet {
+            market_id,
+            bettor: winner.clone(),
+            outcome_index: 0,
+            amount: 100,
+        };
+        let loser_bet = Bet {
+            market_id,
+            bettor: loser.clone(),
+            outcome_index: 1,
+            amount: 300,
+        };
+        save_bet(&env, &winner_bet);
+        save_bet(&env, &loser_bet);
+        add_market_bettor(&env, market_id, &winner);
+        add_market_bettor(&env, market_id, &loser);
+        save_market_pool(&env, market_id, 400);
+
+        env.ledger().set_timestamp(21);
+        PredictXContract::resolve_market(env.clone(), market_id, 0).unwrap();
+
+        assert_eq!(
+            PredictXContract::claim_reward(env.clone(), market_id, winner),
+            Ok(400)
+        );
+    });
+}
+
+#[test]
+fn losing_bettor_cannot_claim() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+    env.ledger().set_timestamp(10);
+    let contract_id = env.register(PredictXContract, ());
+    let winner = Address::generate(&env);
+    let loser = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Losing claim market"),
+            String::from_str(&env, "A market with a losing bettor."),
+            20,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        let winner_bet = Bet {
+            market_id,
+            bettor: winner.clone(),
+            outcome_index: 0,
+            amount: 100,
+        };
+        let loser_bet = Bet {
+            market_id,
+            bettor: loser.clone(),
+            outcome_index: 1,
+            amount: 300,
+        };
+        save_bet(&env, &winner_bet);
+        save_bet(&env, &loser_bet);
+        add_market_bettor(&env, market_id, &winner);
+        add_market_bettor(&env, market_id, &loser);
+        save_market_pool(&env, market_id, 400);
+
+        env.ledger().set_timestamp(21);
+        PredictXContract::resolve_market(env.clone(), market_id, 0).unwrap();
+
+        assert_eq!(
+            PredictXContract::claim_reward(env.clone(), market_id, loser),
+            Err(PredictXError::NotWinningBet)
+        );
+    });
+}
+
+#[test]
+fn claim_twice_fails() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+    env.ledger().set_timestamp(10);
+    let contract_id = env.register(PredictXContract, ());
+    let winner = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Double claim market"),
+            String::from_str(&env, "A market that prevents double claims."),
+            20,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        let winner_bet = Bet {
+            market_id,
+            bettor: winner.clone(),
+            outcome_index: 0,
+            amount: 100,
+        };
+        save_bet(&env, &winner_bet);
+        add_market_bettor(&env, market_id, &winner);
+        save_market_pool(&env, market_id, 100);
+
+        env.ledger().set_timestamp(21);
+        PredictXContract::resolve_market(env.clone(), market_id, 0).unwrap();
+
+        assert_eq!(
+            PredictXContract::claim_reward(env.clone(), market_id, winner.clone()),
+            Ok(100)
+        );
+        assert_eq!(
+            PredictXContract::claim_reward(env.clone(), market_id, winner),
+            Err(PredictXError::RewardAlreadyClaimed)
+        );
+    });
+}
+
+#[test]
+fn unresolved_market_reward_fails() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+    env.ledger().set_timestamp(10);
+    let contract_id = env.register(PredictXContract, ());
+    let bettor = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Unresolved reward market"),
+            String::from_str(&env, "A market that is not resolved yet."),
+            20,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        PredictXContract::place_bet(env.clone(), market_id, bettor.clone(), 0, 100).unwrap();
+
+        assert_eq!(
+            PredictXContract::calculate_reward(env.clone(), market_id, bettor),
+            Err(PredictXError::MarketNotResolved)
+        );
+    });
+}
+
+#[test]
+fn no_bet_reward_fails() {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+    env.ledger().set_timestamp(10);
+    let contract_id = env.register(PredictXContract, ());
+    let bettor = Address::generate(&env);
+    let other_bettor = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "No bet reward market"),
+            String::from_str(&env, "A market where one address has no bet."),
+            20,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        PredictXContract::place_bet(env.clone(), market_id, other_bettor, 0, 100).unwrap();
+
+        env.ledger().set_timestamp(21);
+        PredictXContract::resolve_market(env.clone(), market_id, 0).unwrap();
+
+        assert_eq!(
+            PredictXContract::calculate_reward(env.clone(), market_id, bettor),
+            Err(PredictXError::BetNotFound)
+        );
     });
 }

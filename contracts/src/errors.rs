@@ -18,4 +18,8 @@ pub enum PredictXError {
     BetNotFound = 12,
     MarketPoolOverflow = 13,
     MarketNotEnded = 14,
+    MarketNotResolved = 15,
+    NotWinningBet = 16,
+    RewardAlreadyClaimed = 17,
+    RewardCalculationOverflow = 18,
 }

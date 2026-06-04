@@ -1,5 +1,5 @@
 use crate::{betting::Bet, market::Market, resolution::MarketResult};
-use soroban_sdk::{contracttype, Address, Env};
+use soroban_sdk::{contracttype, Address, Env, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -9,6 +9,8 @@ pub enum DataKey {
     Bet(u64, Address),
     MarketPool(u64),
     MarketResult(u64),
+    MarketBettors(u64),
+    RewardClaimed(u64, Address),
 }
 
 pub fn get_next_market_id(env: &Env) -> u64 {
@@ -49,6 +51,15 @@ pub fn save_bet(env: &Env, bet: &Bet) {
         .set(&DataKey::Bet(bet.market_id, bet.bettor.clone()), bet);
 }
 
+pub fn add_market_bettor(env: &Env, market_id: u64, bettor: &Address) {
+    let mut bettors = get_market_bettors(env, market_id);
+    bettors.push_back(bettor.clone());
+
+    env.storage()
+        .persistent()
+        .set(&DataKey::MarketBettors(market_id), &bettors);
+}
+
 pub fn get_bet(env: &Env, market_id: u64, bettor: &Address) -> Option<Bet> {
     env.storage()
         .persistent()
@@ -78,4 +89,24 @@ pub fn get_market_result(env: &Env, market_id: u64) -> Option<MarketResult> {
     env.storage()
         .persistent()
         .get(&DataKey::MarketResult(market_id))
+}
+
+pub fn get_market_bettors(env: &Env, market_id: u64) -> Vec<Address> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::MarketBettors(market_id))
+        .unwrap_or_else(|| Vec::new(env))
+}
+
+pub fn mark_reward_claimed(env: &Env, market_id: u64, bettor: &Address) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::RewardClaimed(market_id, bettor.clone()), &true);
+}
+
+pub fn is_reward_claimed(env: &Env, market_id: u64, bettor: &Address) -> bool {
+    env.storage()
+        .persistent()
+        .get(&DataKey::RewardClaimed(market_id, bettor.clone()))
+        .unwrap_or(false)
 }
