@@ -17,4 +17,5 @@ pub enum PredictXError {
     DuplicateBet = 11,
     BetNotFound = 12,
     MarketPoolOverflow = 13,
+    MarketNotEnded = 14,
 }

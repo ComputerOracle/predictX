@@ -12,10 +12,11 @@ use crate::{
     betting::Bet,
     errors::PredictXError,
     market::Market,
+    resolution::MarketResult,
     storage::{
         get_bet as load_bet, get_market as load_market, get_market_count,
-        get_market_pool as load_market_pool, get_next_market_id, save_bet, save_market,
-        save_market_pool,
+        get_market_pool as load_market_pool, get_market_result as load_market_result,
+        get_next_market_id, save_bet, save_market, save_market_pool, save_market_result,
     },
 };
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
@@ -138,6 +139,50 @@ impl PredictXContract {
 
     pub fn get_market_pool(env: Env, market_id: u64) -> i128 {
         load_market_pool(&env, market_id)
+    }
+
+    pub fn resolve_market(
+        env: Env,
+        market_id: u64,
+        winning_outcome: u32,
+    ) -> Result<(), PredictXError> {
+        let mut market = load_market(&env, market_id).ok_or(PredictXError::MarketNotFound)?;
+
+        if market.resolved {
+            return Err(PredictXError::MarketResolved);
+        }
+
+        if winning_outcome >= market.outcomes.len() {
+            return Err(PredictXError::InvalidOutcomeIndex);
+        }
+
+        if env.ledger().timestamp() <= market.end_time {
+            return Err(PredictXError::MarketNotEnded);
+        }
+
+        market.resolved = true;
+        let result = MarketResult {
+            winning_outcome: Some(winning_outcome),
+            resolved: true,
+        };
+
+        save_market(&env, &market);
+        save_market_result(&env, market_id, &result);
+
+        Ok(())
+    }
+
+    pub fn get_market_result(env: Env, market_id: u64) -> Result<MarketResult, PredictXError> {
+        let market = load_market(&env, market_id).ok_or(PredictXError::MarketNotFound)?;
+
+        if let Some(result) = load_market_result(&env, market_id) {
+            return Ok(result);
+        }
+
+        Ok(MarketResult {
+            winning_outcome: None,
+            resolved: market.resolved,
+        })
     }
 }
 

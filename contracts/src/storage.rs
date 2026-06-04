@@ -1,4 +1,4 @@
-use crate::{betting::Bet, market::Market};
+use crate::{betting::Bet, market::Market, resolution::MarketResult};
 use soroban_sdk::{contracttype, Address, Env};
 
 #[contracttype]
@@ -8,6 +8,7 @@ pub enum DataKey {
     MarketCounter,
     Bet(u64, Address),
     MarketPool(u64),
+    MarketResult(u64),
 }
 
 pub fn get_next_market_id(env: &Env) -> u64 {
@@ -65,4 +66,16 @@ pub fn save_market_pool(env: &Env, market_id: u64, amount: i128) {
     env.storage()
         .persistent()
         .set(&DataKey::MarketPool(market_id), &amount);
+}
+
+pub fn save_market_result(env: &Env, market_id: u64, result: &MarketResult) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::MarketResult(market_id), result);
+}
+
+pub fn get_market_result(env: &Env, market_id: u64) -> Option<MarketResult> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::MarketResult(market_id))
 }

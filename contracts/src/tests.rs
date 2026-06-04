@@ -5,7 +5,10 @@ use crate::{
     market::Market,
     storage::{get_market, get_next_market_id, save_bet, save_market},
 };
-use soroban_sdk::{testutils::Address as _, vec, Address, Env, String};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger as _},
+    vec, Address, Env, String,
+};
 
 #[test]
 fn exposes_contract_version() {
@@ -511,5 +514,148 @@ fn rejects_duplicate_bet() {
             Err(PredictXError::DuplicateBet)
         );
         assert_eq!(PredictXContract::get_market_pool(env.clone(), market_id), 0);
+    });
+}
+
+#[test]
+fn resolves_market_successfully() {
+    let env = Env::default();
+    env.ledger().set_timestamp(10);
+    let contract_id = env.register(PredictXContract, ());
+    let creator = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = get_next_market_id(&env);
+        let market = Market {
+            id: market_id,
+            creator,
+            title: String::from_str(&env, "Resolution market"),
+            description: String::from_str(&env, "A market ready for resolution."),
+            end_time: 9,
+            outcomes: vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+            resolved: false,
+        };
+        save_market(&env, &market);
+
+        assert_eq!(
+            PredictXContract::resolve_market(env.clone(), market_id, 1),
+            Ok(())
+        );
+
+        let stored_market = PredictXContract::get_market(env.clone(), market_id).unwrap();
+        let result = PredictXContract::get_market_result(env.clone(), market_id).unwrap();
+
+        assert!(stored_market.resolved);
+        assert!(result.resolved);
+        assert_eq!(result.winning_outcome, Some(1));
+    });
+}
+
+#[test]
+fn rejects_resolution_for_invalid_market() {
+    let env = Env::default();
+    let contract_id = env.register(PredictXContract, ());
+
+    env.as_contract(&contract_id, || {
+        let result = PredictXContract::resolve_market(env.clone(), 404, 0);
+
+        assert_eq!(result, Err(PredictXError::MarketNotFound));
+    });
+}
+
+#[test]
+fn rejects_resolution_for_invalid_outcome() {
+    let env = Env::default();
+    env.ledger().set_timestamp(10);
+    let contract_id = env.register(PredictXContract, ());
+    let creator = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = get_next_market_id(&env);
+        let market = Market {
+            id: market_id,
+            creator,
+            title: String::from_str(&env, "Invalid outcome resolution market"),
+            description: String::from_str(&env, "A market with two outcomes."),
+            end_time: 9,
+            outcomes: vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+            resolved: false,
+        };
+        save_market(&env, &market);
+
+        let result = PredictXContract::resolve_market(env.clone(), market_id, 2);
+
+        assert_eq!(result, Err(PredictXError::InvalidOutcomeIndex));
+    });
+}
+
+#[test]
+fn rejects_resolution_before_end_time() {
+    let env = Env::default();
+    let contract_id = env.register(PredictXContract, ());
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Early resolution market"),
+            String::from_str(&env, "A market that has not ended yet."),
+            env.ledger().timestamp() + 1,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        let result = PredictXContract::resolve_market(env.clone(), market_id, 0);
+
+        assert_eq!(result, Err(PredictXError::MarketNotEnded));
+    });
+}
+
+#[test]
+fn rejects_already_resolved_market() {
+    let env = Env::default();
+    env.ledger().set_timestamp(10);
+    let contract_id = env.register(PredictXContract, ());
+    let creator = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = get_next_market_id(&env);
+        let market = Market {
+            id: market_id,
+            creator,
+            title: String::from_str(&env, "Already resolved market"),
+            description: String::from_str(&env, "A market that resolves once."),
+            end_time: 9,
+            outcomes: vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+            resolved: false,
+        };
+        save_market(&env, &market);
+
+        assert_eq!(
+            PredictXContract::resolve_market(env.clone(), market_id, 0),
+            Ok(())
+        );
+        assert_eq!(
+            PredictXContract::resolve_market(env.clone(), market_id, 1),
+            Err(PredictXError::MarketResolved)
+        );
+
+        let result = PredictXContract::get_market_result(env.clone(), market_id).unwrap();
+        assert_eq!(result.winning_outcome, Some(0));
     });
 }
