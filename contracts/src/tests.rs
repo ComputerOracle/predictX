@@ -186,3 +186,81 @@ fn rejects_invalid_end_time() {
         assert_eq!(result, Err(PredictXError::InvalidEndTime));
     });
 }
+
+#[test]
+fn retrieves_existing_market() {
+    let env = Env::default();
+    let contract_id = env.register(PredictXContract, ());
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Existing market"),
+            String::from_str(&env, "A market that should be retrievable."),
+            env.ledger().timestamp() + 1,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        let market = PredictXContract::get_market(env.clone(), market_id).unwrap();
+
+        assert_eq!(market.id, market_id);
+        assert_eq!(market.title, String::from_str(&env, "Existing market"));
+        assert!(!market.resolved);
+    });
+}
+
+#[test]
+fn rejects_missing_market_retrieval() {
+    let env = Env::default();
+    let contract_id = env.register(PredictXContract, ());
+
+    env.as_contract(&contract_id, || {
+        let result = PredictXContract::get_market(env.clone(), 404);
+
+        assert_eq!(result, Err(PredictXError::MarketNotFound));
+    });
+}
+
+#[test]
+fn lists_multiple_markets() {
+    let env = Env::default();
+    let contract_id = env.register(PredictXContract, ());
+
+    env.as_contract(&contract_id, || {
+        let first_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "First market"),
+            String::from_str(&env, "The first market in the list."),
+            env.ledger().timestamp() + 1,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+        let second_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Second market"),
+            String::from_str(&env, "The second market in the list."),
+            env.ledger().timestamp() + 2,
+            vec![
+                &env,
+                String::from_str(&env, "Up"),
+                String::from_str(&env, "Down"),
+            ],
+        )
+        .unwrap();
+
+        let markets = PredictXContract::list_markets(env.clone());
+
+        assert_eq!(markets.len(), 2);
+        assert_eq!(markets.get(0).unwrap().id, first_id);
+        assert_eq!(markets.get(1).unwrap().id, second_id);
+    });
+}

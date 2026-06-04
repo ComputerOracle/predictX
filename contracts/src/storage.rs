@@ -23,6 +23,13 @@ pub fn get_next_market_id(env: &Env) -> u64 {
     next_id
 }
 
+pub fn get_market_count(env: &Env) -> u64 {
+    env.storage()
+        .instance()
+        .get(&DataKey::MarketCounter)
+        .unwrap_or(0_u64)
+}
+
 pub fn save_market(env: &Env, market: &Market) {
     env.storage()
         .persistent()

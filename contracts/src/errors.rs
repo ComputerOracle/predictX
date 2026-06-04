@@ -9,4 +9,5 @@ pub enum PredictXError {
     EmptyDescription = 3,
     InvalidOutcomeCount = 4,
     InvalidEndTime = 5,
+    MarketNotFound = 6,
 }
