@@ -9,11 +9,16 @@ pub mod rewards;
 pub mod storage;
 
 use crate::{
+    betting::Bet,
     errors::PredictXError,
     market::Market,
-    storage::{get_market as load_market, get_market_count, get_next_market_id, save_market},
+    storage::{
+        get_bet as load_bet, get_market as load_market, get_market_count,
+        get_market_pool as load_market_pool, get_next_market_id, save_bet, save_market,
+        save_market_pool,
+    },
 };
-use soroban_sdk::{contract, contractimpl, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
 #[contract]
 pub struct PredictXContract;
@@ -78,6 +83,61 @@ impl PredictXContract {
         }
 
         markets
+    }
+
+    pub fn place_bet(
+        env: Env,
+        market_id: u64,
+        bettor: Address,
+        outcome_index: u32,
+        amount: i128,
+    ) -> Result<(), PredictXError> {
+        bettor.require_auth();
+
+        let market = load_market(&env, market_id).ok_or(PredictXError::MarketNotFound)?;
+
+        if market.resolved {
+            return Err(PredictXError::MarketResolved);
+        }
+
+        if env.ledger().timestamp() >= market.end_time {
+            return Err(PredictXError::MarketEnded);
+        }
+
+        if amount <= 0 {
+            return Err(PredictXError::InvalidBetAmount);
+        }
+
+        if outcome_index >= market.outcomes.len() {
+            return Err(PredictXError::InvalidOutcomeIndex);
+        }
+
+        if load_bet(&env, market_id, &bettor).is_some() {
+            return Err(PredictXError::DuplicateBet);
+        }
+
+        let bet = Bet {
+            market_id,
+            bettor,
+            outcome_index,
+            amount,
+        };
+        let market_pool = load_market_pool(&env, market_id)
+            .checked_add(amount)
+            .ok_or(PredictXError::MarketPoolOverflow)?;
+
+        save_bet(&env, &bet);
+        save_market_pool(&env, market_id, market_pool);
+
+        Ok(())
+    }
+
+    pub fn get_bet(env: Env, market_id: u64, bettor: Address) -> Result<Bet, PredictXError> {
+        load_bet(&env, market_id, &bettor).ok_or(PredictXError::BetNotFound)
+    }
+
+    pub fn get_market_pool(env: Env, market_id: u64) -> i128 {
+        load_market_pool(&env, market_id)
     }
 }
 

@@ -10,4 +10,11 @@ pub enum PredictXError {
     InvalidOutcomeCount = 4,
     InvalidEndTime = 5,
     MarketNotFound = 6,
+    MarketResolved = 7,
+    MarketEnded = 8,
+    InvalidBetAmount = 9,
+    InvalidOutcomeIndex = 10,
+    DuplicateBet = 11,
+    BetNotFound = 12,
+    MarketPoolOverflow = 13,
 }

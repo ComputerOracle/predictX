@@ -1,8 +1,9 @@
 use super::{PredictXContract, PredictXContractClient};
 use crate::{
+    betting::Bet,
     errors::PredictXError,
     market::Market,
-    storage::{get_market, get_next_market_id, save_market},
+    storage::{get_market, get_next_market_id, save_bet, save_market},
 };
 use soroban_sdk::{testutils::Address as _, vec, Address, Env, String};
 
@@ -262,5 +263,253 @@ fn lists_multiple_markets() {
         assert_eq!(markets.len(), 2);
         assert_eq!(markets.get(0).unwrap().id, first_id);
         assert_eq!(markets.get(1).unwrap().id, second_id);
+    });
+}
+
+#[test]
+fn places_bet_successfully() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PredictXContract, ());
+    let bettor = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Bettable market"),
+            String::from_str(&env, "A market that accepts a valid bet."),
+            env.ledger().timestamp() + 1,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        let result = PredictXContract::place_bet(env.clone(), market_id, bettor.clone(), 0, 100);
+
+        assert_eq!(result, Ok(()));
+
+        let bet = PredictXContract::get_bet(env.clone(), market_id, bettor).unwrap();
+        assert_eq!(bet.market_id, market_id);
+        assert_eq!(bet.outcome_index, 0);
+        assert_eq!(bet.amount, 100);
+        assert_eq!(
+            PredictXContract::get_market_pool(env.clone(), market_id),
+            100
+        );
+    });
+}
+
+#[test]
+fn rejects_bet_for_invalid_market() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PredictXContract, ());
+    let bettor = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let result = PredictXContract::place_bet(env.clone(), 404, bettor, 0, 100);
+
+        assert_eq!(result, Err(PredictXError::MarketNotFound));
+    });
+}
+
+#[test]
+fn rejects_bet_for_invalid_outcome() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PredictXContract, ());
+    let bettor = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Outcome market"),
+            String::from_str(&env, "A market with two outcomes."),
+            env.ledger().timestamp() + 1,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        let result = PredictXContract::place_bet(env.clone(), market_id, bettor, 2, 100);
+
+        assert_eq!(result, Err(PredictXError::InvalidOutcomeIndex));
+    });
+}
+
+#[test]
+fn rejects_zero_amount_bet() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PredictXContract, ());
+    let bettor = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Amount market"),
+            String::from_str(&env, "A market that rejects zero amount bets."),
+            env.ledger().timestamp() + 1,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        let result = PredictXContract::place_bet(env.clone(), market_id, bettor, 0, 0);
+
+        assert_eq!(result, Err(PredictXError::InvalidBetAmount));
+    });
+}
+
+#[test]
+fn rejects_bet_after_market_end() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PredictXContract, ());
+    let bettor = Address::generate(&env);
+    let creator = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = get_next_market_id(&env);
+        let market = Market {
+            id: market_id,
+            creator,
+            title: String::from_str(&env, "Ended market"),
+            description: String::from_str(&env, "A market whose end time has passed."),
+            end_time: env.ledger().timestamp(),
+            outcomes: vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+            resolved: false,
+        };
+
+        save_market(&env, &market);
+
+        let result = PredictXContract::place_bet(env.clone(), market_id, bettor, 0, 100);
+
+        assert_eq!(result, Err(PredictXError::MarketEnded));
+    });
+}
+
+#[test]
+#[should_panic]
+fn rejects_unauthorized_bettor() {
+    let env = Env::default();
+    let contract_id = env.register(PredictXContract, ());
+    let bettor = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Auth market"),
+            String::from_str(&env, "A market that requires bettor auth."),
+            env.ledger().timestamp() + 1,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        let _ = PredictXContract::place_bet(env.clone(), market_id, bettor, 0, 100);
+    });
+}
+
+#[test]
+fn supports_multiple_bets() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PredictXContract, ());
+    let first_bettor = Address::generate(&env);
+    let second_bettor = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Multi-bet market"),
+            String::from_str(&env, "A market that accepts multiple unique bettors."),
+            env.ledger().timestamp() + 1,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(
+            PredictXContract::place_bet(env.clone(), market_id, first_bettor.clone(), 0, 100),
+            Ok(())
+        );
+        assert_eq!(
+            PredictXContract::place_bet(env.clone(), market_id, second_bettor.clone(), 1, 250),
+            Ok(())
+        );
+
+        assert_eq!(
+            PredictXContract::get_bet(env.clone(), market_id, first_bettor)
+                .unwrap()
+                .amount,
+            100
+        );
+        assert_eq!(
+            PredictXContract::get_bet(env.clone(), market_id, second_bettor)
+                .unwrap()
+                .amount,
+            250
+        );
+        assert_eq!(
+            PredictXContract::get_market_pool(env.clone(), market_id),
+            350
+        );
+    });
+}
+
+#[test]
+fn rejects_duplicate_bet() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(PredictXContract, ());
+    let bettor = Address::generate(&env);
+
+    env.as_contract(&contract_id, || {
+        let market_id = PredictXContract::create_market(
+            env.clone(),
+            String::from_str(&env, "Duplicate bet market"),
+            String::from_str(&env, "A market that rejects duplicate bettor writes."),
+            env.ledger().timestamp() + 1,
+            vec![
+                &env,
+                String::from_str(&env, "Yes"),
+                String::from_str(&env, "No"),
+            ],
+        )
+        .unwrap();
+
+        let existing_bet = Bet {
+            market_id,
+            bettor: bettor.clone(),
+            outcome_index: 0,
+            amount: 100,
+        };
+        save_bet(&env, &existing_bet);
+
+        assert_eq!(
+            PredictXContract::place_bet(env.clone(), market_id, bettor, 1, 200),
+            Err(PredictXError::DuplicateBet)
+        );
+        assert_eq!(PredictXContract::get_market_pool(env.clone(), market_id), 0);
     });
 }
