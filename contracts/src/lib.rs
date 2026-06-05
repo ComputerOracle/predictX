@@ -38,11 +38,11 @@ impl PredictXContract {
         end_time: u64,
         outcomes: Vec<String>,
     ) -> Result<u64, PredictXError> {
-        if title.len() == 0 {
+        if title.is_empty() {
             return Err(PredictXError::EmptyTitle);
         }
 
-        if description.len() == 0 {
+        if description.is_empty() {
             return Err(PredictXError::EmptyDescription);
         }
 
