@@ -30,7 +30,7 @@ tests/          Cross-system integration test placeholders
 
 ```bash
 npm install
-rustup target add wasm32-unknown-unknown
+rustup target add wasm32v1-none
 npm run contracts:build
 npm run dev
 ```

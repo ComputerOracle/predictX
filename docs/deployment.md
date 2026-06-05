@@ -5,7 +5,7 @@ Deployment scripts are placeholders until contract logic, network configuration,
 ## Prerequisites
 
 - Rust stable
-- `wasm32-unknown-unknown` target
+- `wasm32v1-none` target
 - Stellar CLI
 - Node.js 22 or newer
 - A funded Stellar testnet account
@@ -19,7 +19,7 @@ npm run contracts:build
 Expected artifact:
 
 ```text
-target/wasm32-unknown-unknown/release/predictx_contracts.wasm
+target/wasm32v1-none/release/predictx_contracts.wasm
 ```
 
 ## Testnet Deployment Placeholder
@@ -35,4 +35,3 @@ Windows:
 ```
 
 The scripts currently validate intent and describe the expected deployment steps. They do not deploy production business logic.
-

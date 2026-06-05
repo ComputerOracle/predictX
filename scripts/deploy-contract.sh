@@ -2,7 +2,7 @@
 set -euo pipefail
 
 NETWORK="${1:-testnet}"
-CONTRACT_WASM="target/wasm32-unknown-unknown/release/predictx_contracts.wasm"
+CONTRACT_WASM="target/wasm32v1-none/release/predictx_contracts.wasm"
 
 echo "PredictX deployment placeholder"
 echo "Network: ${NETWORK}"
@@ -14,4 +14,3 @@ echo "  1. Build optimized contract WASM"
 echo "  2. Upload contract WASM to ${NETWORK}"
 echo "  3. Create contract instance"
 echo "  4. Store contract ID in frontend environment"
-
