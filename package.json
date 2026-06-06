@@ -12,7 +12,7 @@
     "format": "npm --workspace frontend run format",
     "lint": "npm --workspace frontend run lint",
     "test": "npm --workspace frontend run test",
-    "contracts:build": "cargo build --manifest-path contracts/Cargo.toml --target wasm32-unknown-unknown --release",
+    "contracts:build": "cargo build --manifest-path contracts/Cargo.toml --target wasm32v1-none --release",
     "contracts:test": "cargo test --manifest-path contracts/Cargo.toml",
     "contracts:lint": "cargo clippy --workspace --all-targets -- -D warnings"
   },
