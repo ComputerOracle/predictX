@@ -5,14 +5,18 @@ export type FreighterConnection = {
 };
 
 export async function isFreighterInstalled(): Promise<boolean> {
-  return await FreighterApi.isConnected();
+  try {
+    return await FreighterApi.isAllowed();
+  } catch {
+    return false;
+  }
 }
 
 export async function connectFreighter(): Promise<FreighterConnection | null> {
   try {
     const installed = await isFreighterInstalled();
     if (!installed) {
-      throw new Error("Freighter wallet is not installed");
+      throw new Error("Freighter wallet is not installed or not allowed");
     }
 
     const publicKey = await FreighterApi.getPublicKey();
@@ -36,10 +40,10 @@ export async function signTransaction(
   transactionXdr: string
 ): Promise<string | null> {
   try {
-    const signedXdr = await FreighterApi.signTransaction(transactionXdr, {
-      network: "TESTNET",
+    const signedTxXdr = await FreighterApi.signTransaction(transactionXdr, {
+      networkPassphrase: "Test SDF Network ; September 2015",
     });
-    return signedXdr;
+    return signedTxXdr;
   } catch (error) {
     console.error("Transaction signing error:", error);
     return null;

@@ -1,9 +1,9 @@
 export interface Market {
-  id: u64;
+  id: number;
   creator: string;
   title: string;
   description: string;
-  end_time: u64;
+  end_time: number;
   outcomes: string[];
   resolved: boolean;
 }

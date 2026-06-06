@@ -4,10 +4,10 @@ export const STELLAR_NETWORK = {
   rpcUrl: "https://soroban-testnet.stellar.org",
 };
 
+// Access environment variable safely at runtime
 // NEXT_PUBLIC_ variables are injected at build time by Next.js
-const getContractId = () => {
-  // @ts-expect-error - process.env is injected by Next.js
-  return typeof process !== "undefined" ? process.env.NEXT_PUBLIC_CONTRACT_ID : "";
-};
-
-export const CONTRACT_ID = getContractId() || "";
+export const CONTRACT_ID = (() => {
+  if (typeof globalThis === "undefined") return "";
+  const env = (globalThis as any).process?.env;
+  return env?.NEXT_PUBLIC_CONTRACT_ID || "";
+})();
