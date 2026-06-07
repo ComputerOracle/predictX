@@ -20,12 +20,12 @@ export async function connectFreighter(): Promise<FreighterConnection | null> {
       throw new Error("Freighter wallet is not installed or not allowed");
     }
 
-    const response = await FreighterApi.requestPublicKey();
-    if (!response.publicKey) {
+    const publicKey = await FreighterApi.getPublicKey();
+    if (!publicKey) {
       throw new Error("Failed to retrieve public key from Freighter");
     }
 
-    return { publicKey: response.publicKey };
+    return { publicKey };
   } catch (error) {
     console.error("Freighter connection error:", error);
     return null;
