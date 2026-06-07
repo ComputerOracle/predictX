@@ -51,15 +51,16 @@ export async function getUserBet(
       return null;
     }
 
+    const betData = result as { outcome_index?: number | bigint; amount?: number | bigint };
     return {
       outcomeIndex:
-        typeof result.outcome_index === "number"
-          ? result.outcome_index
-          : Number(result.outcome_index),
+        typeof betData.outcome_index === "number"
+          ? betData.outcome_index
+          : Number(betData.outcome_index || 0),
       amount:
-        typeof result.amount === "number"
-          ? result.amount
-          : Number(result.amount),
+        typeof betData.amount === "number"
+          ? betData.amount
+          : Number(betData.amount || 0),
     };
   } catch (error) {
     console.error("Error fetching user bet:", error);

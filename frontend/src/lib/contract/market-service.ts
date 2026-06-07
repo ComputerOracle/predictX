@@ -14,7 +14,7 @@ export async function listMarkets(): Promise<Market[]> {
       return [];
     }
 
-    return result.map((market: any) => parseMarketFromContract(market));
+    return result.map((market: unknown) => parseMarketFromContract(market));
   } catch (error) {
     console.error("Error fetching markets:", error);
     throw error;
@@ -36,16 +36,27 @@ export async function getMarket(marketId: number): Promise<Market> {
   }
 }
 
-function parseMarketFromContract(data: any): Market {
+interface ContractMarketData {
+  id?: number | bigint;
+  creator?: string;
+  title?: string;
+  description?: string;
+  end_time?: number | bigint;
+  outcomes?: string[];
+  resolved?: boolean;
+}
+
+function parseMarketFromContract(data: unknown): Market {
+  const marketData = data as ContractMarketData;
   return {
-    id: typeof data.id === "bigint" ? Number(data.id) : data.id,
-    creator: data.creator || "",
-    title: data.title || "",
-    description: data.description || "",
+    id: typeof marketData.id === "bigint" ? Number(marketData.id) : marketData.id || 0,
+    creator: marketData.creator || "",
+    title: marketData.title || "",
+    description: marketData.description || "",
     end_time:
-      typeof data.end_time === "bigint" ? Number(data.end_time) : data.end_time,
-    outcomes: Array.isArray(data.outcomes) ? data.outcomes : [],
-    resolved: Boolean(data.resolved),
+      typeof marketData.end_time === "bigint" ? Number(marketData.end_time) : marketData.end_time || 0,
+    outcomes: Array.isArray(marketData.outcomes) ? marketData.outcomes : [],
+    resolved: Boolean(marketData.resolved),
   };
 }
 

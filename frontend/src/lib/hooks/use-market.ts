@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Market } from "@/lib/contract/types";
-import { getMarket, getMarketPool } from "@/lib/contract/market-service";
+import { getMarket } from "@/lib/contract/market-service";
+import { getMarketPool } from "@/lib/contract/betting-service";
 
 interface UseMarketReturn {
   market: Market | null;
@@ -18,7 +19,29 @@ export function useMarket(marketId: number): UseMarketReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchMarket = async () => {
+  useEffect(() => {
+    const fetchMarket = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const marketData = await getMarket(marketId);
+        setMarket(marketData);
+
+        const poolData = await getMarketPool(marketId);
+        setPool(poolData);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to load market";
+        setError(message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void fetchMarket();
+  }, [marketId]);
+
+  const refetch = async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -36,15 +59,11 @@ export function useMarket(marketId: number): UseMarketReturn {
     }
   };
 
-  useEffect(() => {
-    void fetchMarket();
-  }, [marketId]);
-
   return {
     market,
     pool,
     isLoading,
     error,
-    refetch: fetchMarket,
+    refetch,
   };
 }

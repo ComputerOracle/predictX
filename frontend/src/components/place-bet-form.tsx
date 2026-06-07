@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import clsx from "clsx";
 import { Market, MarketStatus } from "@/lib/contract/types";
 import { useWallet } from "@/lib/wallet/use-wallet";
@@ -33,10 +33,13 @@ export function PlaceBetForm({ market, onBetSuccess }: PlaceBetFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isMarketClosed, setIsMarketClosed] = useState(false);
 
-  const now = Math.floor(Date.now() / 1000);
-  const marketStatus = getMarketStatus(market, now);
-  const isMarketClosed = marketStatus !== MarketStatus.Active;
+  useEffect(() => {
+    const now = Math.floor(Date.now() / 1000);
+    const marketStatus = getMarketStatus(market, now);
+    setIsMarketClosed(marketStatus !== MarketStatus.Active);
+  }, [market]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};

@@ -1,9 +1,13 @@
-// @ts-nocheck
 import { STELLAR_NETWORK, CONTRACT_ID } from "@/lib/env";
 
-let rpcClient: any = null;
+type SorobanRpcServer = {
+  getAccount: (id: string) => Promise<unknown>;
+  simulateTransaction: (tx: unknown) => Promise<unknown>;
+};
 
-export async function getSorobanClient(): Promise<any> {
+let rpcClient: SorobanRpcServer | null = null;
+
+export async function getSorobanClient(): Promise<SorobanRpcServer> {
   if (!rpcClient) {
     // Dynamic import to avoid TypeScript resolution issues
     const { SorobanRpc } = await import("@stellar/stellar-sdk");
@@ -25,14 +29,14 @@ export function getContractAddress(): string {
 
 export interface InvokeContractOptions {
   method: string;
-  args?: any[];
-  signers?: any[];
+  args?: unknown[];
+  signers?: unknown[];
 }
 
 export async function simulateContractCall(
   method: string,
-  args: any[] = []
-): Promise<any> {
+  args: unknown[] = []
+): Promise<unknown> {
   const { Address, TransactionBuilder, contract, nativeToScVal, scValToNative, SorobanRpc } = await import(
     "@stellar/stellar-sdk"
   );
@@ -44,7 +48,7 @@ export async function simulateContractCall(
     const source = await client.getAccount(contractId);
 
     // Create a contract invocation with simulated parameters
-    const params = args.map((arg: any) => {
+    const params = args.map((arg) => {
       if (typeof arg === "string") {
         return nativeToScVal(arg, { type: "string" });
       }
@@ -70,7 +74,7 @@ export async function simulateContractCall(
     const client_tx = await client.simulateTransaction(tx);
 
     if (SorobanRpc.Api.isSimulationSuccess(client_tx)) {
-      const result = client_tx.result?.retval;
+      const result = (client_tx as { result?: { retval: unknown } }).result?.retval;
       if (result) {
         return scValToNative(result);
       }
@@ -78,8 +82,9 @@ export async function simulateContractCall(
     } else if (SorobanRpc.Api.isSimulationRestore(client_tx)) {
       throw new Error("Contract needs restore");
     } else if (SorobanRpc.Api.isSimulationError(client_tx)) {
+      const errorMsg = (client_tx as { error?: { message: string } }).error?.message;
       throw new Error(
-        `Simulation error: ${client_tx.error?.message || "Unknown error"}`
+        `Simulation error: ${errorMsg || "Unknown error"}`
       );
     }
   } catch (error) {
